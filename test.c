@@ -19,10 +19,24 @@ int main(int argc, char *argv[]) {
 	return '\0';
 }
 
-// void (*foo(void)) const (void) {
-// }
-
 int foo() {
+    bool ok = false;
+    // print("this is ");
+
+    if (notok)
+        a += 2; // print("why");
+
+    if (ok) {
+        return 1;
+    } else if (!ok) {
+        return -1;
+    } else {
+        unreachable;
+    }
+
+    while (k) {
+        b += 2;
+    }
+
     return 0;
 }
-//

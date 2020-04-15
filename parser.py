@@ -3,6 +3,15 @@ import lexer
 from typing import List, Tuple, Optional, Set, Deque
 from collections import deque
 
+
+def dbg(what):
+    def printed(*args, **kwargs):
+        out = what(*args, **kwargs)
+        print(f"dbg: {out}")
+        return out
+    return printed
+
+
 modifier_keywords = {
     "static", "const", "inline", "register", "volatile"
 }
@@ -253,21 +262,34 @@ class Expression:
 
 class Statement:
     EXPRESSION = "expression"
+    BLOCK = "block"
     DEFINITION = "definition"
     RETURN = "return"
     GOTO = "goto"
     BREAK = "break"
+    IF = "if"
+    WHILE = "while"
 
     storage = None
     val = None
     defn = None
     ident = None
+    block = None
+    body = None
+    body_else = None
 
     @staticmethod
     def expression(expr: Expression):
         s = Statement()
         s.storage = Statement.EXPRESSION
         s.val = expr
+        return s
+
+    @staticmethod
+    def block(inner: List['Statement']):
+        s = Statement()
+        s.storage = Statement.BLOCK
+        s.block = inner
         return s
 
     @staticmethod
@@ -296,14 +318,44 @@ class Statement:
         s = Statement()
         s.storage = Statement.BREAK
         return s
+
+    @staticmethod
+    def ifelse(cond, body, body_else):
+        s = Statement()
+        s.storage = Statement.IF
+        s.val = cond
+        s.body = body
+        s.body_else = body_else
+        return s
+
+    @staticmethod
+    def whileloop(cond, body):
+        s = Statement()
+        s.storage = Statement.WHILE
+        s.val = cond
+        s.body = body
+        return s
     
     def __str__(self):
         if self.storage == self.DEFINITION:
             return str(self.defn)
+        if self.storage == self.BLOCK:
+            return "{ " + "\n".join(map(str, self.block)) + " }"
         elif self.storage == self.EXPRESSION:
             return f"Apply {self.val}"
         elif self.storage == self.RETURN:
             return f"Return {self.val}"
+        elif self.storage == self.GOTO:
+            return f"Goto {self.ident}"
+        elif self.storage == self.BREAK:
+            return f"Break"
+        elif self.storage == self.IF:
+            elsestr = ""
+            if self.body_else is not None:
+                elsestr = f" Else {self.body_else}"
+            return f"If {self.val} {self.body}" + elsestr
+        elif self.storage == self.WHILE:
+            return f"While {self.val} {self.body}"
 
 
 
@@ -344,8 +396,7 @@ def parse_toplevel(tokstr: lexer.TokenStream):
         tok = peek()
         if val is not None and tok[1] != val:
             if check:
-                print(f"Expected token `{val}`, got {tok[1]}!")
-                exit(-1)
+                assert False, f"Expected token `{val}`, got {tok[1]}!"
             return None
         if vset is not None and tok[1] not in vset:
             if check:
@@ -405,7 +456,7 @@ def parse_toplevel(tokstr: lexer.TokenStream):
             val = Expression.variable(n)
 
         else:
-            assert(not "unimplemented")
+            assert False, f"unimplemented {peek()} in unary expression"
         
         while op := expect("operator", vset={"++", "--", ".", "->"}) or expect("bracket", vset={"[", "("}):
             if op in {"++", "--"}:
@@ -545,11 +596,28 @@ def parse_toplevel(tokstr: lexer.TokenStream):
             ident = expect("word", check=True)
             expect("delimiter", ";")
             return Statement.goto(ident)
+        elif keyword == "if":
+            ident = expect("bracket", "(", check=True)
+            expr = expect_expression()
+            expect("bracket", ")", check=True)
+            body = expect_statement()
+            elsebody = None
+            if expect("word", "else"):
+                elsebody = expect_statement()
+            return Statement.ifelse(expr, body, elsebody)
+        elif keyword == "while":
+            ident = expect("bracket", "(", check=True)
+            expr = expect_expression()
+            expect("bracket", ")", check=True)
+            body = expect_statement()
+            return Statement.whileloop(expr, body)
         else:
             assert(not "unimplemented")
-    
 
     def expect_statement():
+        if expect("bracket", "{"):
+            return Statement.block(expect_body());
+
         if control := take_control_statement():
             return control
 
@@ -572,8 +640,8 @@ def parse_toplevel(tokstr: lexer.TokenStream):
     def expect_body():
         stmts = []
         while not expect("bracket", "}"):
-            if stmt := expect_statement():
-                stmts.append(stmt)
+            stmt = expect_statement()
+            stmts.append(stmt)
         return stmts
     
     defns = []
