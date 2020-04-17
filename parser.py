@@ -20,7 +20,7 @@ int_keywords = {
 }
 type_keywords = int_keywords | {
     "struct", "union", "enum",
-    "void", "unsigned", "float", "double"
+    "void", "signed", "unsigned", "float", "double"
 }
 control_keywords = {
     "switch", "case", "return", "break", "for", "while", "if", "else", "do", "goto"
@@ -274,7 +274,7 @@ class Statement:
     val = None
     defn = None
     ident = None
-    block = None
+    blk = None
     body = None
     body_else = None
 
@@ -289,7 +289,7 @@ class Statement:
     def block(inner: List['Statement']):
         s = Statement()
         s.storage = Statement.BLOCK
-        s.block = inner
+        s.blk = inner
         return s
 
     @staticmethod
@@ -340,7 +340,7 @@ class Statement:
         if self.storage == self.DEFINITION:
             return str(self.defn)
         if self.storage == self.BLOCK:
-            return "{ " + "\n".join(map(str, self.block)) + " }"
+            return "{ " + "\n".join(map(str, self.blk)) + " }"
         elif self.storage == self.EXPRESSION:
             return f"Apply {self.val}"
         elif self.storage == self.RETURN:
@@ -360,7 +360,7 @@ class Statement:
 
 
 
-def parse_toplevel(tokstr: lexer.TokenStream):
+def parse_toplevel(tokstr: lexer.TokenStream) -> List[Definition]:
     taken: Deque[lexer.Token] = deque()
 
     def take() -> lexer.Token:
@@ -509,7 +509,7 @@ def parse_toplevel(tokstr: lexer.TokenStream):
     def expect_type() -> Tuple[Type, Optional[str]]:
         typeparts = []
         
-        if tw := expect("word", val="unsigned"):
+        if tw := expect("word", vset={"signed", "unsigned"}):
             typeparts.append(tw)
             if tw := expect("word", val="long"):
                 typeparts.append(tw)
